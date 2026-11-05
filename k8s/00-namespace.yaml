@@ -1,0 +1,11 @@
+# LaunchKit lives in its own namespace (D1): nothing of the other apps of the server is touched; only Traefik is
+# shared. The memory of the whole namespace is capped (D3), so that LaunchKit never takes it from them.
+apiVersion: v1
+kind: Namespace
+metadata: { name: launchkit }
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata: { name: memory, namespace: launchkit }
+spec:
+  hard: { limits.memory: 2304Mi, requests.memory: 1Gi }

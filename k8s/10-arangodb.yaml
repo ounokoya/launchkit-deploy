@@ -1,0 +1,35 @@
+# ArangoDB of LaunchKit only (D3), never exposed outside the cluster. ArangoDB sizes its caches on the machine's
+# memory unless told otherwise: it is told 1 GiB, its limit.
+apiVersion: v1
+kind: Service
+metadata: { name: arangodb, namespace: launchkit }
+spec:
+  selector: { app: arangodb }
+  ports: [{ name: http, port: 8529, targetPort: 8529 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: arangodb, namespace: launchkit }
+spec:
+  serviceName: arangodb
+  replicas: 1
+  selector: { matchLabels: { app: arangodb } }
+  template:
+    metadata: { labels: { app: arangodb } }
+    spec:
+      containers:
+        - name: arangodb
+          image: arangodb:3.12.12
+          env:
+            - name: ARANGO_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: launchkit-secrets, key: arango_root } }
+            - { name: ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY, value: "1G" }
+          ports: [{ containerPort: 8529 }]
+          resources: { requests: { memory: 256Mi }, limits: { memory: 1Gi } }
+          readinessProbe: { tcpSocket: { port: 8529 }, periodSeconds: 10 }
+          volumeMounts: [{ name: data, mountPath: /var/lib/arangodb3 }]
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 5Gi } }

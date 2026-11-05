@@ -1,0 +1,36 @@
+# Weekly reset of the demo (D6), Monday 04:00 UTC: accounts, organizations, projects and e-mails of the visitors are
+# deleted; the super admin stays. Collections: server/api/src/LaunchKit.Api/Infrastructure/Schema.cs.
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: reset, namespace: launchkit }
+spec:
+  schedule: "0 4 * * 1"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reset
+              image: curlimages/curl:8.22.0
+              env:
+                - name: ARANGO_PASSWORD
+                  valueFrom: { secretKeyRef: { name: launchkit-secrets, key: arango_root } }
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  db=http://arangodb:8529/_db/launchkit
+                  for c in organizations invitations projects activities jobs payments sessions email_tokens; do
+                    curl -sSf -u "root:$ARANGO_PASSWORD" -X PUT "$db/_api/collection/$c/truncate" > /dev/null
+                  done
+                  curl -sSf -u "root:$ARANGO_PASSWORD" -X POST "$db/_api/cursor" \
+                    -d '{"query":"FOR u IN users FILTER u.isSuperAdmin != true REMOVE u IN users"}' > /dev/null
+                  curl -sSf -X DELETE http://mailpit:8025/mail/api/v1/messages > /dev/null
+                  echo "demo reset"
+              resources: { requests: { memory: 16Mi }, limits: { memory: 64Mi } }
+              securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 100 }

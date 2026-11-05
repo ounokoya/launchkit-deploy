@@ -1,0 +1,34 @@
+# Rust worker (repository launchkit-server): e-mails to the demo inbox, simulated payments, invitation expiry.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: worker, namespace: launchkit }
+spec:
+  replicas: 1
+  strategy: { type: Recreate } # stop, then start: stays under the memory quota
+  selector: { matchLabels: { app: worker } }
+  template:
+    metadata: { labels: { app: worker } }
+    spec:
+      # ArangoDB first: otherwise the service starts before the database and restarts a few times.
+      initContainers:
+        - name: wait-arangodb
+          image: curlimages/curl:8.22.0
+          command: ["/bin/sh", "-c", "until curl -s -o /dev/null http://arangodb:8529/_admin/server/availability; do sleep 2; done"]
+          resources: { requests: { memory: 16Mi }, limits: { memory: 32Mi } }
+          securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 100 }
+      containers:
+        - name: worker
+          image: docker.io/launchkit/worker:VERSION
+          imagePullPolicy: Never
+          env:
+            - { name: ARANGO_URL, value: http://arangodb:8529 }
+            - { name: ARANGO_DATABASE, value: launchkit }
+            - { name: ARANGO_USER, value: root }
+            - name: ARANGO_PASSWORD
+              valueFrom: { secretKeyRef: { name: launchkit-secrets, key: arango_root } }
+            - { name: SMTP_HOST, value: mailpit }
+            - { name: SMTP_PORT, value: "1025" }
+            - { name: MAIL_FROM, value: "LaunchKit <noreply@demo.test>" }
+            - { name: APP_BASE_URL, value: https://saas.koyad.com }
+          resources: { requests: { memory: 16Mi }, limits: { memory: 128Mi } }
+          securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 65532 }

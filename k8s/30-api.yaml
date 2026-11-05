@@ -1,0 +1,42 @@
+# LaunchKit API (repository launchkit-server). Public under /api for the mobile app; the web calls it inside the
+# cluster. The super admin (admin@demo.test) is created at start with the password of the secret.
+apiVersion: v1
+kind: Service
+metadata: { name: api, namespace: launchkit }
+spec:
+  selector: { app: api }
+  ports: [{ name: http, port: 8080, targetPort: 8080 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: api, namespace: launchkit }
+spec:
+  replicas: 1
+  strategy: { type: Recreate } # stop, then start: stays under the memory quota
+  selector: { matchLabels: { app: api } }
+  template:
+    metadata: { labels: { app: api } }
+    spec:
+      # ArangoDB first: otherwise the service starts before the database and restarts a few times.
+      initContainers:
+        - name: wait-arangodb
+          image: curlimages/curl:8.22.0
+          command: ["/bin/sh", "-c", "until curl -s -o /dev/null http://arangodb:8529/_admin/server/availability; do sleep 2; done"]
+          resources: { requests: { memory: 16Mi }, limits: { memory: 32Mi } }
+          securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 100 }
+      containers:
+        - name: api
+          image: docker.io/launchkit/api:VERSION
+          imagePullPolicy: Never
+          env:
+            - { name: Arango__Url, value: http://arangodb:8529 }
+            - name: Arango__Password
+              valueFrom: { secretKeyRef: { name: launchkit-secrets, key: arango_root } }
+            - { name: App__WebBaseUrl, value: https://saas.koyad.com }
+            - { name: Seed__AdminEmail, value: admin@demo.test }
+            - name: Seed__AdminPassword
+              valueFrom: { secretKeyRef: { name: launchkit-secrets, key: admin_password } }
+          ports: [{ containerPort: 8080 }]
+          resources: { requests: { memory: 128Mi }, limits: { memory: 512Mi } }
+          readinessProbe: { httpGet: { path: /health, port: 8080 }, periodSeconds: 10 }
+          securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: true }

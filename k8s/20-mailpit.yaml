@@ -1,0 +1,31 @@
+# Demo inbox (D6): every e-mail of the demo ends here, none leaves the server. Public at /mail/: visitors read the
+# messages of their made-up @demo.test addresses. Kept in memory, at most 1 000 messages.
+apiVersion: v1
+kind: Service
+metadata: { name: mailpit, namespace: launchkit }
+spec:
+  selector: { app: mailpit }
+  ports:
+    - { name: http, port: 8025, targetPort: 8025 }
+    - { name: smtp, port: 1025, targetPort: 1025 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: mailpit, namespace: launchkit }
+spec:
+  replicas: 1
+  strategy: { type: Recreate } # stop, then start: stays under the memory quota
+  selector: { matchLabels: { app: mailpit } }
+  template:
+    metadata: { labels: { app: mailpit } }
+    spec:
+      containers:
+        - name: mailpit
+          image: axllent/mailpit:v1.31
+          env:
+            - { name: MP_WEBROOT, value: /mail/ }
+            - { name: MP_MAX_MESSAGES, value: "1000" }
+          ports: [{ containerPort: 8025 }, { containerPort: 1025 }]
+          resources: { requests: { memory: 32Mi }, limits: { memory: 128Mi } }
+          readinessProbe: { httpGet: { path: /mail/readyz, port: 8025 }, periodSeconds: 10 }
+          securityContext: { allowPrivilegeEscalation: false }

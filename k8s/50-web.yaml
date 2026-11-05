@@ -1,0 +1,32 @@
+# Web site and app (repository launchkit-web). ORIGIN = the public address: SvelteKit refuses forms from elsewhere.
+apiVersion: v1
+kind: Service
+metadata: { name: web, namespace: launchkit }
+spec:
+  selector: { app: web }
+  ports: [{ name: http, port: 3000, targetPort: 3000 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: web, namespace: launchkit }
+spec:
+  replicas: 1
+  strategy: { type: Recreate } # stop, then start: stays under the memory quota
+  selector: { matchLabels: { app: web } }
+  template:
+    metadata: { labels: { app: web } }
+    spec:
+      containers:
+        - name: web
+          image: docker.io/launchkit/web:VERSION
+          imagePullPolicy: Never
+          env:
+            - { name: ORIGIN, value: https://saas.koyad.com }
+            - { name: API_URL, value: http://api:8080 }
+            - { name: PUBLIC_MAILPIT_URL, value: https://saas.koyad.com/mail/ }
+            - { name: PUBLIC_SOURCE_URL, value: "https://github.com/ounokoya?tab=repositories&q=launchkit" }
+            - { name: PUBLIC_ANDROID_URL, value: https://github.com/ounokoya/launchkit-mobile/releases/latest }
+          ports: [{ containerPort: 3000 }]
+          resources: { requests: { memory: 96Mi }, limits: { memory: 256Mi } }
+          readinessProbe: { httpGet: { path: /, port: 3000 }, periodSeconds: 10 }
+          securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: 1000 }
