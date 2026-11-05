@@ -35,14 +35,15 @@ Traefik is shared. A quota caps the memory of the namespace (2.25 GiB of limits)
 From a machine with Docker and SSH access to the server, next to the `launchkit-server` and `launchkit-web` checkouts:
 
 ```bash
+export SERVER=root@your-server        # SSH access to the k3s node
 scripts/images.sh 0.1.0               # builds api, worker, web and loads them into the k3s of the server
 scripts/deploy.sh 0.1.0 --dry-run     # checks the manifests on the server
 scripts/deploy.sh 0.1.0               # namespace, secrets, services, ingress, weekly reset
 ```
 
-`SERVER` (default `root@31.57.224.79`) chooses the server. The images are loaded directly (no registry yet).
+The images are loaded directly (no registry yet).
 
-Check: `ssh root@31.57.224.79 'k3s kubectl -n launchkit get pods'`. Remove everything:
+Check: `ssh $SERVER 'k3s kubectl -n launchkit get pods'`. Remove everything:
 `k3s kubectl delete namespace launchkit` (the data volume goes with it).
 
 | Manifest | Content |
@@ -55,3 +56,7 @@ Check: `ssh root@31.57.224.79 'k3s kubectl -n launchkit get pods'`. Remove every
 | `k8s/70-reset.yaml` | weekly reset of the demo |
 
 Roadmap: [docs/roadmap.md](docs/roadmap.md).
+
+## License
+
+MIT, see [LICENSE](LICENSE).
